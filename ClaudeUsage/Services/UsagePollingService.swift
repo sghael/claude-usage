@@ -9,14 +9,31 @@ final class UsagePollingService {
     private var lastNotifiedSessionPct: Int = -1
     private var lastNotifiedWeeklyPct: Int = -1
     private var cachedToken: String?
+    private var lastKnownIntervalMinutes: Int
 
     init(appState: AppState) {
         self.appState = appState
+        self.lastKnownIntervalMinutes = appState.refreshIntervalMinutes
         // Read keychain once at startup and cache
         if let creds = KeychainService.loadClaudeCodeToken() {
             cachedToken = creds.accessToken
         }
         requestNotificationPermission()
+        observeRefreshIntervalChanges()
+    }
+
+    /// Reschedule the polling timer when the user changes the interval in Settings.
+    /// `@AppStorage` writes flow through `UserDefaults.didChangeNotification`.
+    private func observeRefreshIntervalChanges() {
+        Task { @MainActor [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+                guard let self else { return }
+                let current = self.appState.refreshIntervalMinutes
+                guard current != self.lastKnownIntervalMinutes else { continue }
+                self.lastKnownIntervalMinutes = current
+                self.rescheduleTimer()
+            }
+        }
     }
 
     func start() {
