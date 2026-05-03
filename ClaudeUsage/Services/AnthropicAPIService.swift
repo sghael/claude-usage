@@ -33,15 +33,14 @@ actor ClaudeAPIService {
             throw ClaudeAPIError.httpError(http.statusCode)
         }
 
-        let headers = http.allHeaderFields
         return ClaudeUsageData(
             session: UsageLimit(
-                utilization: parsePercent(headers["anthropic-ratelimit-unified-5h-utilization"]),
-                resetAt: parseEpoch(headers["anthropic-ratelimit-unified-5h-reset"])
+                utilization: parsePercent(http.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-utilization")),
+                resetAt: parseEpoch(http.value(forHTTPHeaderField: "anthropic-ratelimit-unified-5h-reset"))
             ),
             weeklyAll: UsageLimit(
-                utilization: parsePercent(headers["anthropic-ratelimit-unified-7d-utilization"]),
-                resetAt: parseEpoch(headers["anthropic-ratelimit-unified-7d-reset"])
+                utilization: parsePercent(http.value(forHTTPHeaderField: "anthropic-ratelimit-unified-7d-utilization")),
+                resetAt: parseEpoch(http.value(forHTTPHeaderField: "anthropic-ratelimit-unified-7d-reset"))
             ),
             weeklySonnet: nil, // Not available from headers
             lastUpdated: Date()
@@ -73,7 +72,7 @@ actor ClaudeAPIService {
             throw ClaudeAPIError.authenticationFailed
         }
 
-        guard let orgId = http.allHeaderFields["anthropic-organization-id"] as? String, !orgId.isEmpty else {
+        guard let orgId = http.value(forHTTPHeaderField: "anthropic-organization-id"), !orgId.isEmpty else {
             throw ClaudeAPIError.invalidResponse
         }
 
@@ -82,20 +81,15 @@ actor ClaudeAPIService {
 
     // MARK: - Helpers
 
-    private func parsePercent(_ value: Any?) -> Double {
+    private func parsePercent(_ value: String?) -> Double {
         // Header value is 0.0-1.0, convert to 0-100
-        if let str = value as? String, let d = Double(str) { return d * 100 }
-        if let num = value as? NSNumber { return num.doubleValue * 100 }
-        return 0
+        guard let str = value, let d = Double(str) else { return 0 }
+        return d * 100
     }
 
-    private func parseEpoch(_ value: Any?) -> Date? {
-        let epoch: TimeInterval?
-        if let str = value as? String { epoch = TimeInterval(str) }
-        else if let num = value as? NSNumber { epoch = num.doubleValue }
-        else { return nil }
-        guard let e = epoch else { return nil }
-        return Date(timeIntervalSince1970: e)
+    private func parseEpoch(_ value: String?) -> Date? {
+        guard let str = value, let epoch = TimeInterval(str) else { return nil }
+        return Date(timeIntervalSince1970: epoch)
     }
 }
 
