@@ -96,7 +96,7 @@ final class UsagePollingService {
             }
         }
         if let apiError = error as? ClaudeAPIError {
-            return apiError.localizedDescription ?? "Unknown API error."
+            return apiError.localizedDescription
         }
         return "Something went wrong. Will retry."
     }
