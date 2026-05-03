@@ -139,7 +139,8 @@ final class UsagePollingService {
     }
 
     private func sendNotification(title: String, body: String) {
-        // Try UNUserNotificationCenter first
+        // Try UNUserNotificationCenter first; fall back to osascript only on failure.
+        // The fallback exists because unsigned local builds can't deliver UN notifications.
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -149,17 +150,12 @@ final class UsagePollingService {
             content: content,
             trigger: nil
         )
-        UNUserNotificationCenter.current().add(request) { error in
-            if error != nil {
-                // Fallback to Process-based notification for unsigned apps
-                DispatchQueue.main.async {
-                    self.sendOSANotification(title: title, body: body)
-                }
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            guard error != nil else { return }
+            DispatchQueue.main.async {
+                self?.sendOSANotification(title: title, body: body)
             }
         }
-
-        // Also send via osascript as a reliable fallback
-        sendOSANotification(title: title, body: body)
     }
 
     private func sendOSANotification(title: String, body: String) {
